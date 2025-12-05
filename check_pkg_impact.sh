@@ -52,7 +52,6 @@ for package_name in "$@"; do
     echo "Processing package: $package_name"
 
     # 1. Get the list of "ELF 64-bit LSB shared object" files in the package
-    #files=$(dpkg -L "$package_name" 2>/dev/null | grep -E '\.(so|bin|sbin)?$|^/usr/(s?bin)/' | tr '\n' ' ')
     files=$(dpkg -L "$package_name" 2>/dev/null | xargs -r -d '\n' file --separator ': ' | grep -E ': *ELF 64-bit LSB shared object' | cut -d: -f1)
 
     if [ -z "$files" ]; then
