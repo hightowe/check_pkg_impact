@@ -65,10 +65,21 @@ echo "Total packages to be analyzed: $(echo "$all_packages" | wc -w)"
 echo "-------------------------------------"
 
 for package_name in $all_packages; do
-    if [[ ! " $@ " =~ " $package_name " ]]; then
+    if [[ ! " $requested_packages " =~ " $package_name " ]]; then
       printf "Processing package: %s ${YELLOW}(dependency)${NC}\n" "$package_name"
     else
       echo "Processing package: $package_name"
+    fi
+
+    # --- REBOOT & INITRAMFS CHECKS ---
+
+    # Check for Reboot Requirements (Kernel or PID 1)
+    IS_KERNEL=$(echo "$package_name" | grep -E '^linux-image-')
+    IS_SYSTEMD=$(echo "$package_name" | grep -xE 'systemd')
+    HAS_REBOOT_TRIGGER=$(grep -qs "reboot-notifier" /var/lib/dpkg/info/"$package_name".{triggers,postinst} 2>/dev/null)
+
+    if [ -n "$IS_KERNEL" ] || [ -n "$IS_SYSTEMD" ] || [ -n "$HAS_REBOOT_TRIGGER" ]; then
+        printf "  ${RED}${BOLD}[!] REBOOT RECOMMENDED:${NC} %s affects core system state.\n" "$package_name"
     fi
 
     # Check if this package is known to trigger an initramfs update
@@ -76,7 +87,9 @@ for package_name in $all_packages; do
       printf "  ${RED}${BOLD}[!] WARNING:${NC} This package likely triggers an initramfs update.\n"
     fi
 
-    # 1. Get the list of ELF binaries and libraries in the package
+    # --- BINARY IMPACT CHECK ---
+
+    # Get the list of ELF binaries and libraries in the package
     files=$(dpkg -L "$package_name" 2>/dev/null | xargs -r -d '\n' file --separator ': ' | grep -E ': +ELF .*(executable|shared object)' | cut -d: -f1)
 
     if [ -z "$files" ]; then
@@ -84,8 +97,8 @@ for package_name in $all_packages; do
         continue
     fi
 
-    # 2. Use lsof to find processes using any of these files
-    # The -F pcf option outputs PID, Command name, and File name in a machine-readable format
+    # Use lsof to find processes using any of these files.
+    # The -F pcf option outputs PID, Command name, and File name in a machine-readable format.
     impacted_procs=$(lsof -F pcf $files 2>/dev/null)
 
     if [ -z "$impacted_procs" ]; then
@@ -93,7 +106,9 @@ for package_name in $all_packages; do
         continue
     fi
 
-    # 3. Format and display the results
+    # --- FORMATTED OUTPUT ---
+
+    # Format and display the results
     echo "  --> Impacted processes for $package_name:"
 
     # Header Line - Using the variable in the format string
