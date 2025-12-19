@@ -34,6 +34,6 @@ This script is designed for sysadmins who want to know if an update requires no 
 git clone [https://github.com/hightowe/check_pkg_impact.git](https://github.com/hightowe/check_pkg_impact.git)
 cd check_pkg_impact
 
-# Run against a package you are considering upgrading
-sudo ./check_pkg_impact.sh libc6
-
+# Run against one or more packages that you are considering upgrading
+sudo ./check_pkg_impact.sh libssl3
+sudo ./check_pkg_impact.sh libc6 lvm2 systemd  # Expect a lot of results on most systems
