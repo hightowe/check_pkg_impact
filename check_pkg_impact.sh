@@ -24,6 +24,12 @@
 #
 ############################################################################
 
+# ANSI Color Codes used to attract the user's attention
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color (Reset)
+
 # Check for arguments
 if [[ "$#" -eq 0 ]]; then
     # Print an error message to standard error (>&2)
@@ -45,11 +51,30 @@ if ! command -v lsof &> /dev/null ; then
     exit 1 # Exit with a non-zero status code (indicating an error)
 fi
 
-echo "Analyzing processes for packages: $@"
+echo "Analyzing packages: $@"
 echo "-------------------------------------"
 
-for package_name in "$@"; do
-    echo "Processing package: $package_name"
+# Get dependencies from simulation, merge requested packages with
+# simulated dependencies, and get a unique list in all_packages.
+requested_packages="$*"  # Packages that the user requested
+echo "Calculating full impact including dependencies..."
+simulated_deps=$(apt-get install -s $requested_packages 2>/dev/null | grep '^Inst' | awk '{print $2}')
+all_packages=$(echo "$requested_packages $simulated_deps" | tr ' ' '\n' | sort -u)
+
+echo "Total packages to be analyzed: $(echo "$all_packages" | wc -w)"
+echo "-------------------------------------"
+
+for package_name in $all_packages; do
+    if [[ ! " $@ " =~ " $package_name " ]]; then
+      printf "Processing package: %s ${YELLOW}(dependency)${NC}\n" "$package_name"
+    else
+      echo "Processing package: $package_name"
+    fi
+
+    # Check if this package is known to trigger an initramfs update
+    if grep -qs "update-initramfs" /var/lib/dpkg/info/"$package_name".{triggers,postinst} 2>/dev/null; then
+      printf "  ${RED}${BOLD}[!] WARNING:${NC} This package likely triggers an initramfs update.\n"
+    fi
 
     # 1. Get the list of ELF binaries and libraries in the package
     files=$(dpkg -L "$package_name" 2>/dev/null | xargs -r -d '\n' file --separator ': ' | grep -E ': +ELF .*(executable|shared object)' | cut -d: -f1)
