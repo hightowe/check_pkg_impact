@@ -37,3 +37,26 @@ cd check_pkg_impact
 # Run against one or more packages that you are considering upgrading
 sudo ./check_pkg_impact.sh libssl3
 sudo ./check_pkg_impact.sh libc6 lvm2 systemd  # Expect a lot of results on most systems
+```
+
+# check_pkg_impact-universal.sh
+
+A "pre-flight" audit tool for Linux systems to determine the impact of package upgrades, in advance.
+It is to be used in exactly the same way that the Debian-only check_pkg_impact.sh is, but it is
+designed to work on:
+ * Debian/Ubuntu (apt/dpkg)
+ * RHEL/CentOS/Fedora (dnf/yum/rpm)
+ * Arch Linux (pacman)
+
+## IMPORTANT NOTE:
+This program was written almost entirely by Google Antigravity,
+with check_pkg_impact.sh as a starting point. Lester Hightower
+prompted Antigravity and did the (limited) testing necessary on
+the three Linux OS types listed above to get it to work. However,
+this program has not been extensively tested and Lester Hightower uses
+Debian/Ubuntu-based distros almost exclusively, and so this program
+won't get much testing from him personally. And so, please use with
+caution, and pull requests are welcomed.
+
+
+
