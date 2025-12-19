@@ -51,8 +51,8 @@ echo "-------------------------------------"
 for package_name in "$@"; do
     echo "Processing package: $package_name"
 
-    # 1. Get the list of "ELF 64-bit LSB shared object" files in the package
-    files=$(dpkg -L "$package_name" 2>/dev/null | xargs -r -d '\n' file --separator ': ' | grep -E ': *ELF 64-bit LSB shared object' | cut -d: -f1)
+    # 1. Get the list of ELF binaries and libraries in the package
+    files=$(dpkg -L "$package_name" 2>/dev/null | xargs -r -d '\n' file --separator ': ' | grep -E ': +ELF .*(executable|shared object)' | cut -d: -f1)
 
     if [ -z "$files" ]; then
         echo "No relevant binaries or libraries found for $package_name, or package not installed."
@@ -70,11 +70,40 @@ for package_name in "$@"; do
 
     # 3. Format and display the results
     echo "  --> Impacted processes for $package_name:"
-    echo "$impacted_procs" | awk '
-        /^p/ { pid=$0; sub(/^p/, "", pid) }
-        /^c/ { cmd=$0; sub(/^c/, "", cmd) }
-        /^f/ { print "    PID: " pid ", Command: " cmd }
-    ' | sort -u
+
+    # Header Line - Using the variable in the format string
+    COMM_WIDTH="30" # The width for the Command column
+    comm_underline=$(printf '%*s' "$COMM_WIDTH" '' | tr ' ' '-')
+    printf "    %-8s %-${COMM_WIDTH}s %s\n" "PID" "Command" "Recommended Restart"
+    printf "    %-8s %-${COMM_WIDTH}s %s\n" "-------" "$comm_underline" "-------------------"
+
+    echo "$impacted_procs" | awk '/^p/ {print substr($0, 2)}' | sort -u | while read -r pid; do
+        # Get the command name
+        full_cmd=$(ps -p "$pid" -o args= 2>/dev/null | awk '{print $1}')
+
+        # Trim the command using the COMM_WIDTH variable
+        comm=$(basename -- "$full_cmd" | cut -c1-"$COMM_WIDTH")
+
+        # Use -- to prevent strings starting with '-' from being read as options
+        # If full_cmd is empty (process ended), we provide a fallback
+        if [ -n "$full_cmd" ]; then
+            comm=$(basename -- "$full_cmd")
+        else
+            comm="<defunct/ended>"
+        fi
+
+        # Get the systemd unit
+        unit=$(ps -p "$pid" -o unit= 2>/dev/null | grep ".service" | sed 's/\.service.*//' | xargs)
+
+        if [ -n "$unit" ]; then
+            repro="systemctl restart $unit"
+        else
+            repro="[Manual]"
+        fi
+
+        # Print the formatted row using the variable
+        printf "    %-8s %-${COMM_WIDTH}.${COMM_WIDTH}s %s\n" "$pid" "$comm" "$repro"
+    done
 
     echo ""
 done
